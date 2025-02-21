@@ -1,31 +1,67 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 
 function App() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [username, setUsername] = useState("");
   const [socket, setSocket] = useState(null);
+	
+  const closeSocket = useCallback(() => { 
+    if (socket) { 
+      console.log("Closing webSocket connection");
+      socket.close();
+    }
+  }, [socket]);
+
+
 
   useEffect(() => {
     if (username) {
+      console.log(`Establishing WebSocket connection for ${username}`);
       const newSocket = new WebSocket(`ws://localhost:8000/ws/${username}`);
       setSocket(newSocket);
 
+      newSocket.onopen = () => { 
+        console.log("WebSocket connection established");
+      }; 
+
       newSocket.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-        setMessages((prev) => [...prev, message]);
+        try { 
+          const message = JSON.parse(event.data);
+          console.log("Received message:", message);
+          setMessages((prev) => [...prev, message])
+        } catch (error) { 
+          console.error("Error parsing message:", error);
+        }
       };
 
-      return() => newSocket.close();
+      newSocket.onerror = (error) => { 
+        console.error("WebSocket error:", error);
+      };
+
+      newSocket.onclose = () => { 
+        console.log("WebSocket connection closed");
+      }; 
+      
+      setSocket(newSocket);
+      
+      return() => { 
+        closeSocket();
+      };
     }
-  }, [username]);
+  }, [username, closeSocket]);
+	
 
   const sendMessage = () => {
-    if (socket && input) {
+    if (socket && socket.readyState === WebSocket.OPEN && input) {
+      console.log("Sending message:", input);
       socket.send(input);
       setInput("");
+    } else { 
+      console.warn("Cannot send message, WebSocket is not open or input is empty");
     }
   };
+
   return (
     <div>
       <h1>Chat App</h1>
